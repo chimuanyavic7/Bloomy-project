@@ -1,17 +1,50 @@
-import com.amazonaws.services.lambda.runtime.Context;
-import com.amazonaws.services.lambda.runtime.RequestHandler;
-import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
-import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+//package com.profAkymbo.devops;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 
-public class Application implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 
-    @Override
-    public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
+public class Application {
 
-        String html = """
+    public static void main(String[] args) throws IOException {
+
+        int port = 8081;
+
+        HttpServer server = HttpServer.create(
+            new InetSocketAddress(port),
+            0
+        );
+
+        server.createContext("/", Application::handleRequest);
+
+        server.setExecutor(null);
+
+        System.out.println(
+            "======================================"
+        );
+
+        System.out.println(
+            "   profAkymbo DevOps Java Application"
+        );
+
+        System.out.println(
+            "   Server running on port " + port
+        );
+
+        System.out.println(
+            "======================================"
+        );
+
+        server.start();
+    }
+
+    private static void handleRequest(HttpExchange exchange)
+            throws IOException {
+
+        String response = """
                 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -315,16 +348,18 @@ public class Application implements RequestHandler<APIGatewayProxyRequestEvent, 
 </html>
                 """;
 
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Content-Type", "text/html; charset=UTF-8");
-        // Optional: allow CORS if needed
-        headers.put("Access-Control-Allow-Origin", "*");
+        exchange.getResponseHeaders()
+                .set("Content-Type", "text/html; charset=UTF-8");
 
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
-        response.setStatusCode(200);
-        response.setHeaders(headers);
-        response.setBody(html);
+        exchange.sendResponseHeaders(
+            200,
+            response.getBytes().length
+        );
 
-        return response;
+        try (OutputStream output =
+                     exchange.getResponseBody()) {
+
+            output.write(response.getBytes());
+        }
     }
 }
