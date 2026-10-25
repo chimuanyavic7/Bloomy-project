@@ -53,6 +53,14 @@ jobs:
           aws --version
           gh --version
 
+      - name: Verify Terraform Variables File
+        run: |
+          set -euo pipefail
+          if [[ ! -f dev.tfvars ]]; then
+            echo "ERROR: terraform/dev.tfvars was not found"
+            exit 1
+          fi
+
       - name: Terraform Init
         run: |
           set -euxo pipefail
@@ -93,9 +101,9 @@ jobs:
           set -euxo pipefail
 
           if [[ "$ACTION" == "destroy" ]]; then
-            terraform plan -destroy -input=false
+            terraform plan -destroy -var-file="dev.tfvars" -input=false
           else
-            terraform plan -input=false
+            terraform plan -var-file="dev.tfvars" -input=false
           fi
 
       - name: Run Terraform Apply or Destroy
@@ -105,9 +113,15 @@ jobs:
           set -euxo pipefail
 
           if [[ "$ACTION" == "destroy" ]]; then
-            terraform destroy -auto-approve -input=false
+            terraform destroy \
+              -var-file="dev.tfvars" \
+              -auto-approve \
+              -input=false
           else
-            terraform apply -auto-approve -input=false
+            terraform apply \
+              -var-file="dev.tfvars" \
+              -auto-approve \
+              -input=false
           fi
 
       - name: Update or Clear GitHub Repository Variable
