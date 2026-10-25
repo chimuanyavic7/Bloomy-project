@@ -68,7 +68,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build & Push Frontend
+      - name: Build & Push bloomy-java
         uses: docker/build-push-action@v5
         with:
           context: java
@@ -80,7 +80,7 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Build & Push Backend
+      - name: Build & Push bloomy-myportfolio
         uses: docker/build-push-action@v5
         with:
           context: myportfolio
