@@ -1,4 +1,3 @@
-
 name: Terraform Infrastructure
 
 on:
@@ -23,9 +22,14 @@ permissions:
   contents: read
   actions: write
 
+# Prevent simultaneous Terraform operations against the same state.
+concurrency:
+  group: terraform-infrastructure
+  cancel-in-progress: false
+
 jobs:
   terraform:
-    name: "Provision AWS Infrastructure"
+    name: Provision AWS Infrastructure
     runs-on: ubuntu-latest
 
     defaults:
@@ -46,30 +50,20 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      - name: Verify Tool Versions
-        run: |
-          set -eux
-          terraform version
-          aws --version
-          gh --version
-
       - name: Verify Terraform Variables File
+        shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f dev.tfvars ]]; then
+          test -f dev.tfvars || {
             echo "ERROR: terraform/dev.tfvars was not found"
             exit 1
-          fi
+          }
 
       - name: Terraform Init
-        run: |
-          set -euxo pipefail
-          terraform init -input=false
+        run: terraform init -input=false
 
       - name: Terraform Validate
-        run: |
-          set -euxo pipefail
-          terraform validate
+        run: terraform validate
 
       - name: Determine Terraform Action
         id: set-action
@@ -87,42 +81,50 @@ jobs:
           fi
 
           if [[ "$ACTION" != "apply" && "$ACTION" != "destroy" ]]; then
-            echo "Invalid Terraform action: $ACTION"
+            echo "ERROR: Invalid Terraform action: $ACTION"
             exit 1
           fi
 
           echo "action=$ACTION" >> "$GITHUB_OUTPUT"
-          echo "Selected Terraform action: $ACTION"
+          echo "Selected action: $ACTION"
 
-      - name: Terraform Plan
+      - name: Create Terraform Plan
         env:
           ACTION: ${{ steps.set-action.outputs.action }}
+        shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
 
           if [[ "$ACTION" == "destroy" ]]; then
-            terraform plan -destroy -var-file="dev.tfvars" -input=false
+            terraform plan \
+              -destroy \
+              -var-file="dev.tfvars" \
+              -input=false \
+              -out=tfplan
           else
-            terraform plan -var-file="dev.tfvars" -input=false
+            terraform plan \
+              -var-file="dev.tfvars" \
+              -input=false \
+              -out=tfplan
           fi
 
-      - name: Run Terraform Apply or Destroy
+      - name: Show Terraform Plan
+        run: terraform show -no-color tfplan
+
+      - name: Apply Terraform Plan
         env:
           ACTION: ${{ steps.set-action.outputs.action }}
+        shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
 
           if [[ "$ACTION" == "destroy" ]]; then
-            terraform destroy \
-              -var-file="dev.tfvars" \
-              -auto-approve \
-              -input=false
+            echo "Destroying Terraform-managed infrastructure..."
           else
-            terraform apply \
-              -var-file="dev.tfvars" \
-              -auto-approve \
-              -input=false
+            echo "Applying Terraform infrastructure changes..."
           fi
+
+          terraform apply -input=false tfplan
 
       - name: Update or Clear GitHub Repository Variable
         if: github.ref == 'refs/heads/main'
@@ -130,18 +132,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTION: ${{ steps.set-action.outputs.action }}
           REPOSITORY: ${{ github.repository }}
+        shell: bash
         run: |
           set -euo pipefail
 
           if [[ "$ACTION" == "apply" ]]; then
-            INSTANCE_IP=$(terraform output -raw instance_public_ip)
+            INSTANCE_IP="$(terraform output -raw instance_public_ip)"
 
             if [[ -z "$INSTANCE_IP" ]]; then
-              echo "ERROR: Terraform returned an empty instance_public_ip"
+              echo "ERROR: Empty instance_public_ip output"
               exit 1
             fi
-
-            echo "EC2 public IP: $INSTANCE_IP"
 
             gh variable set EC2_HOST \
               --repo "$REPOSITORY" \
@@ -151,8 +152,9 @@ jobs:
           else
             echo "Infrastructure destroyed. Removing EC2_HOST..."
 
-            gh variable delete EC2_HOST \
-              --repo "$REPOSITORY" || true
-
-            echo "EC2_HOST cleanup completed."
+            if gh variable delete EC2_HOST --repo "$REPOSITORY"; then
+              echo "EC2_HOST removed."
+            else
+              echo "EC2_HOST may already be absent."
+            fi
           fi
