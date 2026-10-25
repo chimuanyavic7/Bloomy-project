@@ -1,0 +1,11 @@
+# Use an unprivileged Nginx image
+FROM nginxinc/nginx-unprivileged:stable-alpine
+
+# Copy website files into the Nginx web directory
+COPY --chown=nginx:nginx . /usr/share/nginx/html/
+
+# Document the container port
+EXPOSE 80
+
+# Run Nginx in the foreground
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,150 @@
+
+name: Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+
+
+  workflow_dispatch:
+    
+# Security: restrict default permissions to read-only
+permissions:
+  contents: read
+  
+  
+jobs:
+# ============================================================
+# VERSION
+# Generates one immutable version for the entire pipeline
+# ============================================================
+
+  version:
+    name: "🏷️ Generate Image Version"
+    runs-on: ubuntu-latest
+
+    outputs:
+      IMAGE_TAG: ${{ steps.version.outputs.image_tag }}
+
+    steps:
+      - name: Generate image tag
+        id: version
+        run: |
+          IMAGE_TAG="${GITHUB_SHA::7}"
+
+          echo "Image tag: $IMAGE_TAG"
+
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+
+
+  
+  # ============================================================
+  # DOCKER BUILD
+  # IMPORTANT:
+  # Images are NOT pushed here.
+  # We only build the image locally.
+  # ============================================================
+
+  docker-build:
+    name: 🐳 Docker Build 
+    runs-on: ubuntu-latest
+    needs: [version]
+    
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: java
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bloomy-java:${{ needs.version.outputs.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Security: provenance and SBOM
+          provenance: true
+          sbom: true
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: myportfolio
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/bloomy-myportfolio:${{ needs.version.outputs.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Security: provenance and SBOM
+          provenance: true
+          sbom: true
+
+  
+  # Deploy the successfully built release to EC2
+  deploy:
+    name: "🚀 Deploy to EC2"
+    runs-on: ubuntu-latest
+    needs: [version, docker-build]
+
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          # DEPLOY_SHA: ${{ github.sha }}
+          IMAGE_TAG: ${{ needs.version.outputs.IMAGE_TAG }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        with:
+          host: ${{ vars.EC2_HOST }}   # <-- Automatically pulls the IP set by Terraform
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DEPLOY_SHA,IMAGE_TAG,DOCKERHUB_USERNAME,DOCKERHUB_TOKEN
+          script: |
+            set -eu
+
+            # CHANGE THIS to your existing Git clone directory
+            cd /home/ubuntu/bloomy-project
+
+            echo "Deploying commit: $DEPLOY_SHA"
+            echo "Deploying image tag: $IMAGE_TAG"
+
+            # Update the server repository to the exact
+            # commit that triggered this pipeline.
+            git fetch origin main
+            git checkout --detach "$DEPLOY_SHA"
+
+            # Authenticate to Docker Hub
+            echo "$DOCKERHUB_TOKEN" | docker login \
+              --username "$DOCKERHUB_USERNAME" \
+              --password-stdin
+
+            # Supply the new version to Docker Compose
+            export IMAGE_TAG
+            export DOCKERHUB_USERNAME
+
+            # Validate, pull, and deploy
+            docker compose config -q
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            docker logout
+
+            echo "Deployment successful: $IMAGE_TAG"

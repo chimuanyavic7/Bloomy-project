@@ -1,0 +1,24 @@
+services:
+  java:
+    image: ${DOCKERHUB_USERNAME}/bloomy-java:${IMAGE_TAG}
+    container_name: bloomy-java
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - bloomy-network
+
+  myportfolio:
+    image: ${DOCKERHUB_USERNAME}/bloomy-myportfolio:${IMAGE_TAG}
+    container_name: bloomy-myportfolio
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    networks:
+      - bloomy-network
+
+networks:
+  bloomy-network:
+    driver: bridge

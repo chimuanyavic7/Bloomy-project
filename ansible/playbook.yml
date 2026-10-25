@@ -1,0 +1,94 @@
+---
+- name: Configure Ubuntu Server with AWS CLI, Docker, Docker Compose, and GitHub Repo
+  hosts: webservers
+  become: true
+
+
+  tasks:
+    - name: Update apt package cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install core prerequisites (Git, Curl, Unzip)
+      ansible.builtin.apt:
+        name:
+          - git
+          - curl
+          - unzip
+          - ca-certificates
+          - gnupg
+        state: present
+
+    # ==========================================
+    # 1. INSTALL AWS CLI v2
+    # ==========================================
+    - name: Download AWS CLI v2 installer zip
+      ansible.builtin.get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
+
+    - name: Extract AWS CLI installer
+      ansible.builtin.unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp
+        remote_src: true
+
+    - name: Run AWS CLI installation script
+      ansible.builtin.command:
+        cmd: /tmp/aws/install --update
+        creates: /usr/local/bin/aws
+
+    # ==========================================
+    # 2. INSTALL DOCKER & DOCKER COMPOSE
+    # ==========================================
+    - name: Ensure keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add Docker official GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: "0644"
+
+    - name: Add Docker stable repository to apt sources
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker Engine and plugins (Compose & Buildx)
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+          - docker-buildx-plugin
+        state: present
+        update_cache: yes
+
+    - name: Start and enable Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Add default 'ubuntu' user to the docker group
+      ansible.builtin.user:
+        name: ubuntu
+        groups: docker
+        append: true
+
+
+    # ==========================================
+    # 3. BUILD & START CONTAINERS
+    # ==========================================
+    - name: Build and run containers via Docker Compose
+      ansible.builtin.command:
+        cmd: docker compose up -d --build
+        chdir: "{{ repo_dest }}"
+      become_user: ubuntu
+
