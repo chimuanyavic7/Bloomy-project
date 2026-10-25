@@ -1,16 +1,19 @@
-name: "Terraform Infrastructure"
+
+name: Terraform Infrastructure
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - 'terraform/**' # Adjust to where your terraform files are located
+      - "terraform/**"
+
   workflow_dispatch:
     inputs:
       action:
-        description: 'Select Terraform Action'
+        description: "Select Terraform Action"
         required: true
-        default: 'apply'
+        default: apply
         type: choice
         options:
           - apply
@@ -18,16 +21,16 @@ on:
 
 permissions:
   contents: read
-  variables: write # Required to automatically update or clear the EC2_HOST repository variable
+  actions: write
 
 jobs:
   terraform:
-    name: "☁️ Provision AWS Infra"
+    name: "Provision AWS Infrastructure"
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: ./terraform # Change to your terraform directory path
+        working-directory: ./terraform
 
     steps:
       - name: Checkout Code
@@ -41,50 +44,101 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-central-1 # Change to your preferred AWS region
+          aws-region: eu-central-1
+
+      - name: Verify Tool Versions
+        run: |
+          set -eux
+          terraform version
+          aws --version
+          gh --version
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          set -euxo pipefail
+          terraform init -input=false
+
+      - name: Terraform Validate
+        run: |
+          set -euxo pipefail
+          terraform validate
 
       - name: Determine Terraform Action
         id: set-action
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ACTION: ${{ inputs.action }}
         run: |
-          # If triggered by a push event, default to 'apply'. Otherwise, use the workflow_dispatch input.
-          if [ "${{ github.event_name }}" == "push" ]; then
-            echo "action=apply" >> $GITHUB_OUTPUT
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            ACTION="apply"
           else
-            echo "action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+            ACTION="${INPUT_ACTION:-apply}"
+          fi
+
+          if [[ "$ACTION" != "apply" && "$ACTION" != "destroy" ]]; then
+            echo "Invalid Terraform action: $ACTION"
+            exit 1
+          fi
+
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+          echo "Selected Terraform action: $ACTION"
+
+      - name: Terraform Plan
+        env:
+          ACTION: ${{ steps.set-action.outputs.action }}
+        run: |
+          set -euxo pipefail
+
+          if [[ "$ACTION" == "destroy" ]]; then
+            terraform plan -destroy -input=false
+          else
+            terraform plan -input=false
           fi
 
       - name: Run Terraform Apply or Destroy
+        env:
+          ACTION: ${{ steps.set-action.outputs.action }}
         run: |
-          ACTION="${{ steps.set-action.outputs.action }}"
-          echo "Executing Terraform action: $ACTION"
-          
-          if [ "$ACTION" == "destroy" ]; then
-            terraform destroy -auto-approve
+          set -euxo pipefail
+
+          if [[ "$ACTION" == "destroy" ]]; then
+            terraform destroy -auto-approve -input=false
           else
-            terraform apply -auto-approve
+            terraform apply -auto-approve -input=false
           fi
 
-      - name: Update or Clear GitHub Variable
+      - name: Update or Clear GitHub Repository Variable
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTION: ${{ steps.set-action.outputs.action }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          ACTION="${{ steps.set-action.outputs.action }}"
-          
-          if [ "$ACTION" == "apply" ]; then
-            # Extract public IP from Terraform output
-            INSTANCE_IP=$(terraform output -raw instance_public_ip)
-            echo "Extracted EC2 Public IP: $INSTANCE_IP"
+          set -euo pipefail
 
-            # Update the GitHub repository variable
-            gh variable set EC2_HOST --body "$INSTANCE_IP"
-            echo "Successfully updated EC2_HOST repository variable!"
+          if [[ "$ACTION" == "apply" ]]; then
+            INSTANCE_IP=$(terraform output -raw instance_public_ip)
+
+            if [[ -z "$INSTANCE_IP" ]]; then
+              echo "ERROR: Terraform returned an empty instance_public_ip"
+              exit 1
+            fi
+
+            echo "EC2 public IP: $INSTANCE_IP"
+
+            gh variable set EC2_HOST \
+              --repo "$REPOSITORY" \
+              --body "$INSTANCE_IP"
+
+            echo "Successfully updated EC2_HOST."
           else
-            echo "Infrastructure destroyed. Clearing EC2_HOST variable..."
-            gh variable set EC2_HOST --body "DESTROYED" || true
-            echo "EC2_HOST variable cleared."
+            echo "Infrastructure destroyed. Removing EC2_HOST..."
+
+            gh variable delete EC2_HOST \
+              --repo "$REPOSITORY" || true
+
+            echo "EC2_HOST cleanup completed."
           fi
