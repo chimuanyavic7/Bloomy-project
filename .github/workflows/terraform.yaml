@@ -22,7 +22,6 @@ on:
 permissions:
   contents: read
   actions: write
-  variables: write
 
 jobs:
   terraform:
@@ -95,39 +94,35 @@ jobs:
           echo "action=$ACTION" >> "$GITHUB_OUTPUT"
           echo "Selected Terraform action: $ACTION"
 
-      
       - name: Terraform Plan
         env:
           ACTION: ${{ steps.set-action.outputs.action }}
         run: |
-          set -euo pipefail
+          set -euxo pipefail
 
           if [[ "$ACTION" == "destroy" ]]; then
-            terraform plan \
-              -destroy \
-              -var-file="dev.tfvars" \
-              -input=false \
-              -out=tfplan
+            terraform plan -destroy -var-file="dev.tfvars" -input=false
           else
-            terraform plan \
-              -var-file="dev.tfvars" \
-              -input=false \
-              -out=tfplan
+            terraform plan -var-file="dev.tfvars" -input=false
           fi
 
       - name: Run Terraform Apply or Destroy
         env:
           ACTION: ${{ steps.set-action.outputs.action }}
         run: |
-          set -euo pipefail
-
-          echo "Executing Terraform action: $ACTION"
+          set -euxo pipefail
 
           if [[ "$ACTION" == "destroy" ]]; then
-            terraform show -no-color tfplan
+            terraform destroy \
+              -var-file="dev.tfvars" \
+              -auto-approve \
+              -input=false
+          else
+            terraform apply \
+              -var-file="dev.tfvars" \
+              -auto-approve \
+              -input=false
           fi
-
-          terraform apply -input=false -auto-approve tfplan
 
       - name: Update or Clear GitHub Repository Variable
         if: github.ref == 'refs/heads/main'
