@@ -1,30 +1,32 @@
-# Build stage
+#Build stage
+
 FROM maven:3.9-eclipse-temurin-21 AS build
+
 WORKDIR /build
 
-COPY pom.xml .
-RUN mvn -B -ntp dependency:go-offline
+COPY pom.xml . RUN mvn -B -ntp dependency:go-offline
 
 COPY src ./src
-RUN mvn -B -ntp -DskipTests package \
-    && cp target/*.jar /build/app.jar
 
-# Production runtime stage
+RUN mvn -B -ntp -DskipTests package
+&& cp target/yearbook-lambda-1.0.0-shaded.jar /build/app.jar
+
+#Production runtime stage
+
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# Create an unprivileged user
+#Create an unprivileged user
+
 RUN useradd --system --no-create-home appuser
 
-COPY --from=build --chown=appuser:appuser /build/app.jar app.jar
+COPY --from=build --chown=appuser:appuser /build/app.jar /app/app.jar
 
 USER appuser
 
-# Java application port
 EXPOSE 8081
 
-# Container-aware JVM configuration
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
