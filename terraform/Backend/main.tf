@@ -7,8 +7,8 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "team-ec2-terraform-statefile"
-    key          = "ec2/terraform.tfstate"
+    bucket       = "bloomy-project-terraform-statefile"
+    key          = "ec2-statefile/terraform.tfstate"
     region       = "eu-central-1"
     use_lockfile = true
     encrypt      = true
