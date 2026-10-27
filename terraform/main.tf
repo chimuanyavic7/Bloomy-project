@@ -21,7 +21,6 @@ provider "aws" {
 
 
 
-
 locals {
   env = var.env
 }
