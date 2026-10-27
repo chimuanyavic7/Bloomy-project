@@ -122,6 +122,7 @@ jobs:
           terraform apply -input=false tfplan
 
       
+      
       - name: Update or Clear GitHub Repository Variable
         if: github.ref == 'refs/heads/main'
         env:
@@ -140,11 +141,23 @@ jobs:
               exit 1
             fi
 
+            # Save the current Terraform IP in GitHub.
             gh variable set EC2_HOST \
               --repo "$REPOSITORY" \
               --body "$INSTANCE_IP"
 
-            echo "Successfully updated EC2_HOST."
+            # Read it back and verify it matches.
+            SAVED_IP="$(gh variable get EC2_HOST --repo "$REPOSITORY")"
+
+            if [[ "$SAVED_IP" != "$INSTANCE_IP" ]]; then
+              echo "ERROR: EC2_HOST does not match Terraform output."
+              echo "Terraform IP: $INSTANCE_IP"
+              echo "Saved IP: $SAVED_IP"
+              exit 1
+            fi
+
+            echo "Verified EC2_HOST matches Terraform output: $SAVED_IP"
+
           else
             echo "Infrastructure destroyed. Removing EC2_HOST..."
 
