@@ -121,7 +121,7 @@ jobs:
             set -eu
 
             # CHANGE THIS to your existing Git clone directory
-            cd /home/ubuntu/bloomy-project
+            cd /home/ubuntu/Bloomy-project
 
             echo "Deploying commit: $DEPLOY_SHA"
             echo "Deploying image tag: $IMAGE_TAG"
