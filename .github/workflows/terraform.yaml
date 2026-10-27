@@ -2,8 +2,6 @@ name: Terraform Infrastructure
 
 on:
   push:
-    branches:
-      - main
     paths:
       - "terraform/**"
 
