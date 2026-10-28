@@ -1,6 +1,6 @@
 key_name      = "home-lab"
 ami_id        = "ami-0303e2e4a29f041a3" 
-instance_type = "t3.micro"
+instance_type = "t3.small"
 
 env                       = "dev"
 aws_region                = "eu-central-1"
