@@ -5,6 +5,43 @@ FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
+# Copy Maven project configuration
+COPY pom.xml ./pom.xml
+
+# Copy application source
+COPY src ./src
+
+# Build the executable JAR and show detailed errors if it fails
+RUN mvn -B -ntp -e clean package -DskipTests \
+    && test -f target/app.jar
+
+
+# =========================
+# Runtime stage
+# =========================
+FROM eclipse-temurin:21-jre-jammy AS runtime
+
+WORKDIR /app
+
+# Copy the packaged application
+COPY --from=build /app/target/app.jar /app/app.jar
+
+# Create a non-root user
+RUN useradd --system --no-create-home appuser \
+    && chown appuser:appuser /app/app.jar
+
+USER appuser
+
+EXPOSE 8081
+
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# =========================
+# Build stage
+# =========================
+FROM maven:3.9-eclipse-temurin-21 AS build
+
+WORKDIR /app
+
 # Copy Maven configuration first for better layer caching
 COPY pom.xml .
 
