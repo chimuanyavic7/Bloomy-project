@@ -4,9 +4,7 @@ services:
     container_name: bloomy-java
     restart: unless-stopped
     ports:
-      - "80:80"
-   # depends_on:
-    #  - backend
+      - "8081:8081"
     networks:
       - bloomy-network
 
@@ -15,7 +13,7 @@ services:
     container_name: bloomy-myportfolio
     restart: unless-stopped
     ports:
-      - "8081:8081"
+      - "80:80"
     networks:
       - bloomy-network
 
