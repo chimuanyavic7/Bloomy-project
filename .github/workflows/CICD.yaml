@@ -4,9 +4,12 @@ name: Pipeline
 on:
   push:
     branches: [main]
+    paths:
+      - 'java/**'
+      - 'myportfolio/**'
+
   pull_request:
     branches: ["*"]
-    
     paths:
       - 'java/**'
       - 'myportfolio/**'
