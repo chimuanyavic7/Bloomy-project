@@ -1,9 +1,8 @@
 ---
-- name: Configure Ubuntu Server with AWS CLI, Docker, Docker Compose, and GitHub Repo
+- name: Configure Ubuntu Server with AWS CLI, Docker, Docker Compose, and GitHu
   hosts: webservers
   become: true
 
-  
   tasks:
     # ==========================================
     # 1. UPDATE SYSTEM AND INSTALL PREREQUISITES
