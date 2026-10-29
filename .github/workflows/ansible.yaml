@@ -1,3 +1,4 @@
+
 name: Ansible Configuration
 
 on:
@@ -18,7 +19,7 @@ jobs:
       - name: Install Ansible
         run: |
           sudo apt-get update
-          sudo apt-get install -y ansible
+          sudo apt-get install -y ansible openssh-client
 
       - name: Prepare SSH Key
         env:
@@ -33,6 +34,21 @@ jobs:
 
           install -m 600 /dev/null "$RUNNER_TEMP/ec2_key"
           printf '%s\n' "$EC2_SSH_KEY" > "$RUNNER_TEMP/ec2_key"
+
+      - name: Set up SSH known_hosts
+        env:
+          EC2_HOST: ${{ vars.EC2_HOST }}
+        run: |
+          set -eu
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          touch ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+          ssh-keygen -F "$EC2_HOST" -f ~/.ssh/known_hosts
 
       - name: Generate Ansible Inventory
         env:
