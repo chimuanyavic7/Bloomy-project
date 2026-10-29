@@ -13,22 +13,22 @@ resource "aws_instance" "public_ec2" {
   user_data = <<-EOF
    #!/bin/bash
 
-    set -e  # Exit immediately if a command fails
+    #set -e  # Exit immediately if a command fails
 
-    echo "=== Updating system ==="
-    sudo apt update -y
+    #echo "=== Updating system ==="
+    #sudo apt update -y
 
-    echo "=== Installing software-properties-common ==="
-    sudo apt install -y software-properties-common
+    #echo "=== Installing software-properties-common ==="
+    #sudo apt install -y software-properties-common
 
-    echo "=== Adding official Ansible PPA ==="
-    sudo add-apt-repository --yes --update ppa:ansible/ansible
+    #echo "=== Adding official Ansible PPA ==="
+    #sudo add-apt-repository --yes --update ppa:ansible/ansible
 
-    echo "=== Installing Ansible ==="
-    sudo apt install -y ansible
+    #echo "=== Installing Ansible ==="
+    #sudo apt install -y ansible
 
-    echo "=== Verifying Ansible installation ==="
-    ansible --version
+    #echo "=== Verifying Ansible installation ==="
+    #ansible --version
 
     echo "=== Cloning GitHub Repository ==="
     # Replace these with your actual GitHub repository URL and destination path
