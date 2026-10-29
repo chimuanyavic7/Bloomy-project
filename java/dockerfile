@@ -1,24 +1,36 @@
-
+# =========================
 # Build stage
+# =========================
 FROM maven:3.9-eclipse-temurin-21 AS build
 
 WORKDIR /app
 
+# Copy Maven configuration first for better layer caching
 COPY pom.xml .
-RUN mvn -B dependency:go-offline
 
+# Validate the POM and download dependencies
+RUN mvn -B -ntp -e validate \
+    && mvn -B -ntp -e dependency:go-offline
+
+# Copy application source
 COPY src ./src
 
-RUN mvn -B clean package -DskipTests \
+# Build the executable JAR
+RUN mvn -B -ntp clean package -DskipTests \
     && test -f /app/target/app.jar
 
+
+# =========================
 # Runtime stage
-FROM eclipse-temurin:21-jre-jammy
+# =========================
+FROM eclipse-temurin:21-jre-jammy AS runtime
 
 WORKDIR /app
 
+# Copy the packaged application
 COPY --from=build /app/target/app.jar /app/app.jar
 
+# Run as a non-root user
 RUN useradd --system --no-create-home appuser \
     && chown appuser:appuser /app/app.jar
 
