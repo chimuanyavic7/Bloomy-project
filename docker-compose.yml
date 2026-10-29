@@ -13,7 +13,7 @@ services:
     container_name: bloomy-myportfolio
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "80:8080"
     networks:
       - bloomy-network
 

@@ -4,8 +4,8 @@ FROM nginxinc/nginx-unprivileged:stable-alpine
 # Copy website files into the Nginx web directory
 COPY --chown=nginx:nginx . /usr/share/nginx/html/
 
-# Document the container port
-EXPOSE 80
+# Nginx unprivileged listens on 8080
+EXPOSE 8080
 
 # Run Nginx in the foreground
 CMD ["nginx", "-g", "daemon off;"]
