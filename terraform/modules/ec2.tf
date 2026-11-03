@@ -51,7 +51,7 @@ resource "aws_instance" "public_ec2" {
 
 
   tags = {
-    Name = "Bastion-Host"
+    Name = "Bloomy-project"
   }
 }
 
@@ -89,20 +89,13 @@ resource "aws_security_group" "sg_public_ec2" {
     }
 
     ingress {
-        description = "prometheus"
-        from_port   = 9090
-        to_port     = 9090
+        description = "second-app"
+        from_port   = 8081
+        to_port     = 8081
         protocol    = "tcp"
         cidr_blocks = ["0.0.0.0/0"]
     }
 
-    ingress {
-        description = "Grafana"
-        from_port   = 3000
-        to_port     = 3000
-        protocol    = "tcp"
-        cidr_blocks = ["0.0.0.0/0"]
-    }
 
     egress {
         from_port   = 0
