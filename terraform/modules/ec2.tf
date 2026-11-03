@@ -10,7 +10,7 @@ resource "aws_instance" "public_ec2" {
   key_name = data.aws_key_pair.key_pair.key_name
   vpc_security_group_ids = [aws_security_group.sg_public_ec2.id]
 
-  user_data = <<-EOF
+  #user_data = <<-EOF
    #!/bin/bash
 
     #set -e  # Exit immediately if a command fails
@@ -30,16 +30,16 @@ resource "aws_instance" "public_ec2" {
     #echo "=== Verifying Ansible installation ==="
     #ansible --version
 
-    echo "=== Cloning GitHub Repository ==="
+    #echo "=== Cloning GitHub Repository ==="
     # Replace these with your actual GitHub repository URL and destination path
-    REPO_URL="https://github.com/chimuanyavic7/Bloomy-project.git"
-    REPO_DEST="/home/ubuntu/Bloomy-project"
+    #REPO_URL="https://github.com/chimuanyavic7/Bloomy-project.git"
+    #REPO_DEST="/home/ubuntu/Bloomy-project"
 
     # Clone the repository as the 'ubuntu' user (prevents permission issues)
-    sudo -u ubuntu git clone "$REPO_URL" "$REPO_DEST"
+    #sudo -u ubuntu git clone "$REPO_URL" "$REPO_DEST"
 
-    echo "=== Setup completed successfully ==="
-    EOF
+    #echo "=== Setup completed successfully ==="
+    #EOF
 
 
   root_block_device {
