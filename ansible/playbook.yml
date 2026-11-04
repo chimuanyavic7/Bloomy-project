@@ -8,10 +8,13 @@
     repo_url: "https://github.com/chimuanyavic7/Bloomy-project.git"
     repo_dest: "/home/ubuntu/Bloomy-project"
 
-    # Pass these values from your GitHub Actions pipeline
+    # Docker Hub credentials from GitHub Actions
     dockerhub_username: "{{ lookup('env', 'DOCKERHUB_USERNAME') }}"
     dockerhub_token: "{{ lookup('env', 'DOCKERHUB_TOKEN') }}"
-    image_tag: "{{ lookup('env', 'IMAGE_TAG') }}"
+
+    dockerhub_api: "https://hub.docker.com/v2/repositories"
+    dockerhub_java_repo: "bloomy-java"
+    dockerhub_portfolio_repo: "bloomy-myportfolio"
 
   tasks:
 
@@ -109,24 +112,107 @@
         append: true
 
     # ==========================================
-    # 4. VALIDATE DEPLOYMENT VARIABLES
+    # 4. VALIDATE DOCKER HUB CREDENTIALS
     # ==========================================
 
-    - name: Validate deployment variables
+    - name: Validate Docker Hub credentials
       ansible.builtin.assert:
         that:
           - dockerhub_username | length > 0
           - dockerhub_token | length > 0
-          - image_tag | length > 0
         fail_msg: >
-          Missing DOCKERHUB_USERNAME, DOCKERHUB_TOKEN
-          or IMAGE_TAG environment variable.
+          Missing DOCKERHUB_USERNAME or DOCKERHUB_TOKEN
+          environment variable in GitHub Actions.
 
     # ==========================================
-    # 5. CLONE / UPDATE BLOOMY REPOSITORY
+    # 5. AUTHENTICATE WITH DOCKER HUB
     # ==========================================
 
-    - name: Clone repository at the requested Git SHA
+    - name: Login to Docker Hub
+      ansible.builtin.command:
+        argv:
+          - docker
+          - login
+          - --username
+          - "{{ dockerhub_username }}"
+          - --password-stdin
+        stdin: "{{ dockerhub_token }}"
+      no_log: true
+
+    # ==========================================
+    # 6. RETRIEVE DOCKER HUB IMAGE TAGS
+    # ==========================================
+
+    - name: Get Docker Hub Java image tags
+      ansible.builtin.uri:
+        url: "{{ dockerhub_api }}/{{ dockerhub_username }}/{{ dockerhub_java_repo }}/tags?page_size=100&ordering=last_updated"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: java_tags
+
+    - name: Filter Java image Git SHA tags
+      ansible.builtin.set_fact:
+        java_sha_tags: >-
+          {{
+            java_tags.json.results
+            | map(attribute='name')
+            | select('match', '^[0-9a-f]{40}$')
+            | list
+          }}
+
+    - name: Ensure Java SHA tags exist
+      ansible.builtin.assert:
+        that:
+          - java_sha_tags | length > 0
+        fail_msg: >
+          No 40-character Git SHA tags found
+          in the bloomy-java Docker Hub repository.
+
+    # ==========================================
+    # 7. FIND MATCHING PORTFOLIO IMAGE TAG
+    # ==========================================
+
+    - name: Check matching myportfolio image tags
+      ansible.builtin.uri:
+        url: "{{ dockerhub_api }}/{{ dockerhub_username }}/{{ dockerhub_portfolio_repo }}/tags/{{ item }}"
+        method: GET
+        status_code:
+          - 200
+          - 404
+      loop: "{{ java_sha_tags }}"
+      register: portfolio_tag_checks
+
+    - name: Select latest common image SHA
+      ansible.builtin.set_fact:
+        image_tag: >-
+          {{
+            (
+              portfolio_tag_checks.results
+              | selectattr('status', 'equalto', 200)
+              | map(attribute='item')
+              | list
+              | first
+            ) | default('')
+          }}
+
+    - name: Validate matching Docker images
+      ansible.builtin.assert:
+        that:
+          - image_tag | length == 40
+        fail_msg: >
+          No common Git SHA tag found in both
+          bloomy-java and bloomy-myportfolio repositories.
+
+    - name: Display selected image tag
+      ansible.builtin.debug:
+        msg: "Selected Bloomy deployment SHA: {{ image_tag }}"
+
+    # ==========================================
+    # 8. CLONE / UPDATE BLOOMY REPOSITORY
+    # ==========================================
+
+    - name: Clone repository at the selected Git SHA
       ansible.builtin.git:
         repo: "{{ repo_url }}"
         dest: "{{ repo_dest }}"
@@ -144,22 +230,7 @@
         state: directory
 
     # ==========================================
-    # 6. AUTHENTICATE WITH DOCKER HUB
-    # ==========================================
-
-    - name: Login to Docker Hub
-      ansible.builtin.command:
-        argv:
-          - docker
-          - login
-          - --username
-          - "{{ dockerhub_username }}"
-          - --password-stdin
-        stdin: "{{ dockerhub_token }}"
-      no_log: true
-
-    # ==========================================
-    # 7. DEPLOY BLOOMY WITH DOCKER COMPOSE
+    # 9. VALIDATE DOCKER COMPOSE CONFIGURATION
     # ==========================================
 
     - name: Validate Docker Compose configuration
@@ -170,7 +241,11 @@
         DOCKERHUB_USERNAME: "{{ dockerhub_username }}"
         IMAGE_TAG: "{{ image_tag }}"
 
-    - name: Pull latest SHA-tagged Docker images
+    # ==========================================
+    # 10. PULL AND DEPLOY BLOOMY CONTAINERS
+    # ==========================================
+
+    - name: Pull SHA-tagged Docker images
       ansible.builtin.command:
         cmd: docker compose pull
         chdir: "{{ repo_dest }}"
@@ -187,7 +262,7 @@
         IMAGE_TAG: "{{ image_tag }}"
 
     # ==========================================
-    # 8. LOGOUT FROM DOCKER HUB
+    # 11. LOGOUT FROM DOCKER HUB
     # ==========================================
 
     - name: Logout from Docker Hub
@@ -195,6 +270,14 @@
         cmd: docker logout
       changed_when: false
 
+    # ==========================================
+    # 12. DEPLOYMENT SUCCESS
+    # ==========================================
+
     - name: Deployment successful
       ansible.builtin.debug:
-        msg: "Bloomy deployed successfully with image tag {{ image_tag }}"
+        msg:
+          - "Bloomy deployment completed successfully."
+          - "Docker Hub username: {{ dockerhub_username }}"
+          - "Image SHA: {{ image_tag }}"
+          - "Services: bloomy-java, bloomy-myportfolio"
