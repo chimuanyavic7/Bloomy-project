@@ -1,5 +1,5 @@
 
-name: Pipeline
+name: staging Pipeline
 
 on:
   push:
@@ -107,7 +107,7 @@ jobs:
     needs: [docker-build, version]
 
     if: >-
-      github.ref == 'refs/heads/main' &&
+      github.ref == 'refs/heads/staging' &&
       (github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch')
 
@@ -135,7 +135,7 @@ jobs:
 
             # Update the server repository to the exact
             # commit that triggered this pipeline.
-            git fetch origin main
+            git fetch origin staging
             git checkout --detach "$DEPLOY_SHA"
 
             # Authenticate to Docker Hub
