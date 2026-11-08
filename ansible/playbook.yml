@@ -102,7 +102,7 @@
         dest: /home/ubuntu/Bloomy-project
         version: staging
         update: true
-        force: false
+        force: true
       become: true
       become_user: ubuntu
 
