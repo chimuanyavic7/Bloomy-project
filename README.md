@@ -318,3 +318,17 @@ docker compose up -d
 
 ---
 
+```bash
+sudo docker run --rm \
+  -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+  -v "$(pwd)/certbot/www:/var/www/certbot" \
+  certbot/certbot certonly \
+  --webroot \
+  -w /var/www/certbot \
+  -d vikkychi.site \
+  -d www.vikkychi.site \
+  -d app.vikkychi.site \
+  --email (add your email address) \
+  --agree-tos \
+  --no-eff-email
+```
