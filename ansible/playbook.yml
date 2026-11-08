@@ -32,10 +32,9 @@
         mode: "0644"
 
     - name: Extract AWS CLI installer
-      ansible.builtin.unarchive:
-        src: /tmp/awscliv2.zip
-        dest: /tmp
-        remote_src: true
+      ansible.builtin.command:
+        cmd: unzip -o /tmp/awscliv2.zip -d /tmp
+        creates: /tmp/aws/install
 
     - name: Install or update AWS CLI v2
       ansible.builtin.command:
