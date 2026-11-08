@@ -101,7 +101,7 @@
       ansible.builtin.git:
         repo: "https://github.com/chimuanyavic7/Bloomy-project.git"
         dest: /home/ubuntu/Bloomy-project
-        version: HEAD
+        version: staging
         update: true
         force: false
       become: true
