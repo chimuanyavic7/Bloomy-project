@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 set -Eeuo pipefail
@@ -12,7 +13,7 @@ echo "======================================"
 echo " BLOOMY AUTOMATED SSL DEPLOYMENT"
 echo "======================================"
 
-# Ensure directories exist
+# Ensure required directories exist
 mkdir -p nginx certbot/conf certbot/www
 
 # Check required files
@@ -23,26 +24,23 @@ for file in nginx/init.conf nginx/prod.conf docker-compose.yml; do
     fi
 done
 
-# Start application containers
-echo "[1/7] Starting application containers..."
-
-sudo docker compose up -d java myportfolio
-
-# Check existing certificate
+# Check whether SSL certificates already exist
 if [ -f "certbot/conf/live/$DOMAIN/fullchain.pem" ] && \
    [ -f "certbot/conf/live/$DOMAIN/privkey.pem" ]; then
 
-    echo "[2/7] Existing SSL certificate found."
+    echo "[1/5] Existing SSL certificate found."
 
 else
 
-    echo "[2/7] Preparing HTTP configuration..."
+    echo "[1/5] Preparing HTTP configuration..."
 
+    # Apply temporary HTTP configuration
     cp nginx/init.conf nginx/current.conf
 
+    # Start/recreate Nginx only
     sudo docker compose up -d --force-recreate nginx
 
-    echo "[3/7] Waiting for Nginx..."
+    echo "[2/5] Waiting for Nginx..."
 
     READY=0
 
@@ -51,16 +49,18 @@ else
             READY=1
             break
         fi
+
         sleep 2
     done
 
     if [ "$READY" -ne 1 ]; then
         echo "ERROR: Nginx failed to start."
+
         sudo docker logs bloomy-nginx --tail 50 || true
         exit 1
     fi
 
-    echo "[4/7] Requesting SSL certificate..."
+    echo "[3/5] Requesting SSL certificate..."
 
     sudo docker run --rm \
         -v "$PROJECT_DIR/certbot/conf:/etc/letsencrypt" \
@@ -68,9 +68,9 @@ else
         certbot/certbot certonly \
         --webroot \
         -w /var/www/certbot \
-        -d vikkychi.site \
-        -d www.vikkychi.site \
-        -d app.vikkychi.site \
+        -d "$DOMAIN" \
+        -d "www.$DOMAIN" \
+        -d "app.$DOMAIN" \
         --email "$EMAIL" \
         --agree-tos \
         --no-eff-email
@@ -78,23 +78,26 @@ else
     # Verify certificate generation
     if [ ! -f "certbot/conf/live/$DOMAIN/fullchain.pem" ] || \
        [ ! -f "certbot/conf/live/$DOMAIN/privkey.pem" ]; then
+
         echo "ERROR: SSL certificate was not generated."
         exit 1
     fi
 
 fi
 
-# Switch to HTTPS configuration
-echo "[5/7] Switching to HTTPS configuration..."
+# Apply HTTPS configuration
+echo "[4/5] Switching to HTTPS configuration..."
 
 cp nginx/prod.conf nginx/current.conf
 
-# Restart Nginx with production configuration
-echo "[6/7] Applying production configuration..."
+# Recreate Nginx only (application containers remain untouched)
+echo "Applying production Nginx configuration..."
 
 sudo docker compose up -d --force-recreate nginx
 
-# Wait for Nginx and validate
+# Validate Nginx configuration
+echo "Validating Nginx configuration..."
+
 READY=0
 
 for i in $(seq 1 30); do
@@ -102,21 +105,25 @@ for i in $(seq 1 30); do
         READY=1
         break
     fi
+
     sleep 2
 done
 
 if [ "$READY" -ne 1 ]; then
     echo "ERROR: Production Nginx configuration is invalid."
+
     sudo docker logs bloomy-nginx --tail 50 || true
     exit 1
 fi
 
-# Verify container
-echo "[7/7] Checking Nginx container..."
+# Verify Nginx container
+echo "[5/5] Checking Nginx container..."
 
 if [ "$(sudo docker inspect -f '{{.State.Running}}' bloomy-nginx)" != "true" ]; then
+
     echo "ERROR: Nginx is not running."
-    sudo docker logs bloomy-nginx --tail 50
+
+    sudo docker logs bloomy-nginx --tail 50 || true
     exit 1
 fi
 
@@ -124,6 +131,10 @@ echo "======================================"
 echo " SSL DEPLOYMENT SUCCESSFUL!"
 echo "======================================"
 
-echo "Frontend: https://vikkychi.site"
-echo "WWW:      https://www.vikkychi.site"
-echo "Backend:  https://app.vikkychi.site"
+echo "Frontend: https://$DOMAIN"
+echo "WWW:      https://www.$DOMAIN"
+echo "Backend:  https://app.$DOMAIN"
+
+echo "======================================"
+echo " Application containers were not restarted."
+echo "======================================"
