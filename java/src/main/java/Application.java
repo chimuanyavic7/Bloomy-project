@@ -275,13 +275,13 @@ public class Application {
                 <p class="quote">"people feel safe to ask questions, make mistakes, and experiment, especially for beginners."</p>
             </div>
 
-            <!-- Oluwakemi -->
+            <!-- victor -->
             <div class="trainee-card">
                 <div class="photo-box">
-                    <img src="https://api.dicebear.com/9.x/avataaars/svg?seed=Oluwakemi&backgroundColor=b6e3f4" alt="Oluwakemi">
+                    <img src="images/picture.jpg" alt="Victor"> 
                 </div>
-                <h3 class="name">Oluwakemi</h3>
-                <div class="superlative">Infrastructurе Engineer Intern</div>
+                <h3 class="name">Victor</h3>
+                <div class="superlative">DevOps/Cloud Infrastructurе Engineer Intern</div>
                 <p class="quote">"The learning environment is calm, welcoming, and supportive."</p>
             </div>
 

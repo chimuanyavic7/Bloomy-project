@@ -8,7 +8,7 @@ terraform {
 
   backend "s3" {
     bucket       = "bloomy-project-terraform-statefile"
-    key          = "bloomy-project-terraform-statefile"
+    key          = "staging/bloomy-project-terraform-statefile"
     region       = "eu-central-1"
     use_lockfile = true
     encrypt      = true
